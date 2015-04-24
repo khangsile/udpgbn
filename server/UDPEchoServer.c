@@ -81,7 +81,10 @@ int main(int argc, char *argv[])
         packet.length = ntohl(packet.length);
         packet.seqno = ntohl(packet.seqno);
 
-        printf("RECEIVE PACKET %d\n", packet.seqno);
+	if (is_lost(lossRate)) {
+	  printf("PACKET LOST %d TYPE %d\n", packet.seqno, packet.type);
+	  continue;
+	}
 
         /* Check if tear down */
         if (packet.type == 4) {
@@ -104,7 +107,8 @@ int main(int argc, char *argv[])
                 while (recvfrom(sock, &packet, sizeof(int)*3, 0,
                     (struct sockaddr *) &echoClntAddr, &cliAddrLen) < 0) {
                     if (errno == EINTR) { /* Never received ack - alarm signaled */
-                        exit(0);
+		      close(sock);
+                      exit(0);
                     }
                 }
                 int type = ntohl(packet.type);
@@ -116,10 +120,11 @@ int main(int argc, char *argv[])
                 }
             }
         } else {
-            if (is_lost(lossRate)) {
+	  /*if (is_lost(lossRate)) {
                 printf("PACKET LOST %d\n", packet.seqno);
                 continue;
-            }
+		}*/
+	    printf("RECEIVE PACKET %d\n", packet.seqno);
             if (packet.seqno == packet_rcvd + 1) {
                 packet_rcvd++;
                 memcpy(&buffer[bits_rcvd], packet.data, packet.length);

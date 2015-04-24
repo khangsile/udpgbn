@@ -22,6 +22,7 @@ int base = 0; /* Count of where the base is */
 
 void DieWithError(char *errorMessage);   /* Error handling function */
 void CatchAlarm(int ignored);            /* Handler for SIGALRM */
+void shutup(int sock);                 /* Shutdown the system */
 
 int main(int argc, char *argv[])
 {
@@ -180,10 +181,11 @@ int main(int argc, char *argv[])
         while ((respLen = recvfrom(sock, &ack, sizeof(ack), 0,
                (struct sockaddr *) &fromAddr, &fromSize)) < 0)
         if (errno == EINTR) {   /* Alarm went off  */
-            if (tries >= MAXTRIES)
-                break;
+          if (tries >= MAXTRIES)
+	    shutup(sock);
+	  break;
         }
-        if (respLen) {
+        if (respLen >= 0) {
             ack.type = ntohl(ack.type);
             ack.ack_no = ntohl(ack.ack_no);
 
@@ -194,8 +196,12 @@ int main(int argc, char *argv[])
         }
     }
 
-    close(sock);
-    exit(0);
+    shutup(sock);
+}
+
+void shutup(int sock) {
+  close(sock);
+  exit(0);
 }
 
 void CatchAlarm(int ignored)     /* Handler for SIGALRM */
