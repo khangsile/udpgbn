@@ -1,0 +1,45 @@
+README:
+
+Server:
+In order to compile the UDP server, go into the server folder and call 'make' to use the 
+Makefile. This will create an executable called 'udpserver' which can be called by:
+'./udpserver <PORT NUMBER> [LOSS RATE]'
+
+The server first reads in the arguments. If no port, is given the server shuts down. If no 
+loss rate is given, then the server defaults to a loss rate of 0.0. The random number
+generator is then seeded and set up begins with the alarm (for the shut down mode) and
+creating the socket. The server then runs forever until it receives a message. It then
+takes the message and retrieves the packet information (converting info back to host 
+endianness). Before sending the packet on, the server checks if the packet is lost (based
+on the output of the random number generator and the loss rate). If lost, the server
+prints PACKET LOST %d TYPE %d. Else, it checks if it is a tearm down packet. If so, it 
+goes into shutdown mode where it waits for 7 seconds and only responds to packets of type 4.
+If not, it prints RECEIVED PACKET %d. It then checks if the packet that has arrived is the
+next packet that it is waiting for based on the packet_rcvd variable. If so, the variable
+is incremented and the new value is ACKed. If not, the variable stays the same and returns
+this ACK value. It then creates and sends an ACK back to the client. 
+
+Note:
+While drand48() returns values between 0 and 1, the server allows LOSS RATES higher than 1 
+even if it does not make sense semantically. There is no difference between LOSS RATES 1 and
+numbers greater than 1 though. One thing that happens (which wasn't explicitly recorded in 
+the specification) is that if the server never receives a tear down message, then the server
+will run continuously in a loop and never shut down. 
+
+Client:
+In order to compile the UDP client, go into the client folder and call 'make' to use the 
+Makefile. This will create an executable called 'udpclient' which can be called by:
+'./udpclient <Server IP> <Server Port> <Chunk Size> <Window Size>'.
+
+If the exact arguments are not provided, then the client will shutdown. The client 
+contains a buffer string that is of size 8192 (including the null terminator), and based
+on the chunkSize, the client determines the total number of packets to be sent. It then
+takes the server port and IP to determine where to send the packets. While the base is less
+than the total number of packets to be sent or the number of timeouts exceeds the MAXTRIES,
+the server sends packets from base to base + windowSize. The last packet sent is 
+recorded using the nextseq variable. If the server receives an ack, it checks if the ack
+is a new ack and incerases the base accordingly. The server resets the number of tries
+and if all packets have been received then it clears the alarm, else it resets the alarm.
+Once all packets have been sent, the server goes into tear down mode, where it sends a
+teardown message to the server and waits for an ACK. If it receives one, then it shuts down. 
+If not, it resends up to 10 times before breaking down. 

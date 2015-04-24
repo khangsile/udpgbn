@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
         packet.length = ntohl(packet.length);
         packet.seqno = ntohl(packet.seqno);
 
+	/* Simulating loss rate */
 	if (is_lost(lossRate)) {
 	  printf("PACKET LOST %d TYPE %d\n", packet.seqno, packet.type);
 	  continue;
@@ -88,13 +89,13 @@ int main(int argc, char *argv[])
 
         /* Check if tear down */
         if (packet.type == 4) {
-            printf("Received tear down\n");
+	    printf("RECEIVE PACKET TYPE %d\n", packet.type);
 
             /* Tear down */
             UDPAck ack;
             ack.type = htonl(8);
             ack.ack_no = htonl(-1);
-            printf("Sending tear down\n");
+	    printf("-------- SEND TEAR DOWN\n");
             if (sendto(sock, &ack, sizeof(ack), 0, (struct sockaddr*) &echoClntAddr,
                 cliAddrLen) != sizeof(ack))
                 DieWithError("Error sending tear down ack");
@@ -102,7 +103,7 @@ int main(int argc, char *argv[])
             // Wait to receive ack
             alarm(7);
 
-            // Wait for 7 seconds or until receive ack
+            // Wait for 7 seconds
             while(1) {
                 while (recvfrom(sock, &packet, sizeof(int)*3, 0,
                     (struct sockaddr *) &echoClntAddr, &cliAddrLen) < 0) {
@@ -112,8 +113,9 @@ int main(int argc, char *argv[])
                     }
                 }
                 int type = ntohl(packet.type);
+		printf("RECEIVE PACKET TYPE %d\n", type);
                 if (type == 4) {
-                    printf("Sending tear down\n");
+                    printf("-------- SEND TEAR DOWN\n");
                     if (sendto(sock, &ack, sizeof(ack), 0, (struct sockaddr*) &echoClntAddr,
                         cliAddrLen) != sizeof(ack))
                         DieWithError("Error sending tear down ack");
@@ -125,6 +127,7 @@ int main(int argc, char *argv[])
                 continue;
 		}*/
 	    printf("RECEIVE PACKET %d\n", packet.seqno);
+	    /* Check if it is the next packet to receive */ 
             if (packet.seqno == packet_rcvd + 1) {
                 packet_rcvd++;
                 memcpy(&buffer[bits_rcvd], packet.data, packet.length);
@@ -145,7 +148,7 @@ int main(int argc, char *argv[])
 
 int is_lost(float loss_rate) {
     double rv;
-    rv = drand48();
+    rv = drand48(); // Gives a number between 0 and 1
     if (rv < loss_rate) return 1;
     else return 0;
 }
