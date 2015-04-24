@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     }
 
     servPort = atoi(argv[1]);  /* First arg:  local port */
-    lossRate = (argc == 4) ? atof(argv[2]) : 0.0; /* Second arg (optional) : loss rate */
+    lossRate = (argc == 3) ? atof(argv[2]) : 0.0; /* Second arg (optional) : loss rate */
 
     srand48(1523); /* Seed for number generator */
 
@@ -81,12 +81,17 @@ int main(int argc, char *argv[])
         packet.length = ntohl(packet.length);
         packet.seqno = ntohl(packet.seqno);
 
+        printf("RECEIVE PACKET %d\n", packet.seqno);
+
         /* Check if tear down */
         if (packet.type == 4) {
+            printf("Received tear down\n");
+
             /* Tear down */
             UDPAck ack;
             ack.type = htonl(8);
             ack.ack_no = htonl(-1);
+            printf("Sending tear down\n");
             if (sendto(sock, &ack, sizeof(ack), 0, (struct sockaddr*) &echoClntAddr,
                 cliAddrLen) != sizeof(ack))
                 DieWithError("Error sending tear down ack");
@@ -104,14 +109,17 @@ int main(int argc, char *argv[])
                 }
                 int type = ntohl(packet.type);
                 if (type == 4) {
+                    printf("Sending tear down\n");
                     if (sendto(sock, &ack, sizeof(ack), 0, (struct sockaddr*) &echoClntAddr,
                         cliAddrLen) != sizeof(ack))
                         DieWithError("Error sending tear down ack");
                 }
             }
         } else {
-            if (is_lost(lossRate)) continue;
-
+            if (is_lost(lossRate)) {
+                printf("PACKET LOST %d\n", packet.seqno);
+                continue;
+            }
             if (packet.seqno == packet_rcvd + 1) {
                 packet_rcvd++;
                 memcpy(&buffer[bits_rcvd], packet.data, packet.length);
@@ -121,7 +129,7 @@ int main(int argc, char *argv[])
             UDPAck ack;
             ack.type = htonl(2);
             ack.ack_no = htonl(packet_rcvd);
-
+            printf("-------- SEND ACK %d\n", packet_rcvd);
             if (sendto(sock, &ack, sizeof(ack), 0, (struct sockaddr*) &echoClntAddr,
                 cliAddrLen) != sizeof(ack))
                 DieWithError("sendto() sent a different number of bytes than expected");

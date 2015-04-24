@@ -77,8 +77,8 @@ int main(int argc, char *argv[])
 
     while (base < totalPackets && tries < MAXTRIES) {
 
-        for(nextseq = base; nextseq < base + windowSize && nextseq < totalPackets; nextseq++) {
-
+        for(; nextseq < base + windowSize && nextseq < totalPackets; nextseq++) {
+            printf("SEND PACKET %d\n", nextseq);
             struct UDPPacket packet;
             packet.type = htonl(1); /* Network endianess */
             packet.seqno = htonl(nextseq);
@@ -117,6 +117,8 @@ int main(int argc, char *argv[])
                         packet.type = htonl(1); /* Network endianess */
                         packet.seqno = htonl(start);
 
+                        printf("RETRANSMIT PACKET %d\n", start);
+
                         /* If not the last packet, then length is chunkSize
                            else it is the modulus of data % chunkSize
                         */
@@ -141,6 +143,55 @@ int main(int argc, char *argv[])
 
         /* recvfrom() got something --  cancel the timeout */
         alarm(0);
+
+        if (respLen) {
+            ack.type = ntohl(ack.type);
+            ack.ack_no = ntohl(ack.ack_no);
+
+            printf("-------- RECEIVE ACK %d\n", ack.ack_no);
+
+            if (ack.ack_no+1 > base)
+                base = ack.ack_no+1;
+
+            tries = 0;
+            if (ack.ack_no == nextseq) { /* all packets received */
+                alarm(0);
+            } else { /* not all packets received */
+                alarm(TIMEOUT_SECS);
+            }
+
+        }
+    }
+
+    /* Tear down try at most 10 times */
+    tries = 0;
+    while(1) {
+        printf("SEND TEARDOWN %d\n", tries);
+
+        UDPPacket packet;
+        packet.type = htonl(4);
+        packet.seqno = htonl(0);
+        packet.length = htonl(0);
+        sendto(sock, &packet, (sizeof(int)*3), 0, (struct sockaddr*) &echoServAddr, 
+            sizeof(echoServAddr));
+
+        alarm(TIMEOUT_SECS);        /* Set the timeout */
+        UDPAck ack; /* The ACK */
+        while ((respLen = recvfrom(sock, &ack, sizeof(ack), 0,
+               (struct sockaddr *) &fromAddr, &fromSize)) < 0)
+        if (errno == EINTR) {   /* Alarm went off  */
+            if (tries >= MAXTRIES)
+                break;
+        }
+        if (respLen) {
+            ack.type = ntohl(ack.type);
+            ack.ack_no = ntohl(ack.ack_no);
+
+            printf("Received ack type: %d\n", ack.type);
+
+            if (ack.type == 8)
+                break;
+        }
     }
 
     close(sock);
